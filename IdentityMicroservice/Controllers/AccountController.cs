@@ -27,6 +27,66 @@ namespace IdentityMicroservice.Controllers
             _configuration = configuration;
         }
 
+
+        public IActionResult ForgotPasswordConfirmation(string userId, string token)
+        {
+            return Ok("Forgot Password Request Confirmed");
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null || !(await _userManager.IsEmailConfirmedAsync(user)))
+            {
+                return NotFound();
+            }
+            var rToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+            //var rTokenLink = Url.ResetPasswordCallbackLink(user.Id, rToken, Request.Scheme);
+            //var rTokenLink = Url.Link("Default", new
+            //{
+            //    Controller = "Account",
+            //    Action = "ForgotPasswordConfirmation",
+            //    userId = user.Id,
+            //    token = rToken
+            //});
+            var rTokenLink = Url.Action("ForgotPasswordConfirmation", "Account", new
+            {
+                userId = user.Id,
+                token = rToken
+            }, protocol: Request.Scheme);
+
+            SMTPClient.SendResetPasswordEmail(model.Email, rTokenLink);
+            return Ok();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ConfirmEmail(string userId, string token)
+        {
+            if (userId == null || token == null)
+            {
+                return BadRequest();
+            }
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return BadRequest();
+            }
+            var result = await _userManager.ConfirmEmailAsync(user, token);
+            if (result.Succeeded)
+            {
+                return Ok("Succes");
+            }
+            else
+            {
+                return NotFound("Email has not been confirmed");
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> Register([FromBody] RegisterModel model)
         {
@@ -40,6 +100,14 @@ namespace IdentityMicroservice.Controllers
 
             if (result.Succeeded)
             {
+                var cToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                var cTokenLink = Url.Action("ConfirmEmail", "Account", new
+                {
+                    userId = user.Id,
+                    token = cToken
+                }, protocol: Request.Scheme);
+                SMTPClient.SendConfirmationEmail(user.Email, cTokenLink);
+
                 return Ok(GetToken(user));
             }
             else
@@ -71,7 +139,7 @@ namespace IdentityMicroservice.Controllers
             }
         }
 
-        private String GetToken(IdentityUser user)
+            private string GetToken(IdentityUser user)
         {
             var utcNow = DateTime.UtcNow;
 
