@@ -1,21 +1,30 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
 
 namespace IdentityMicroservice.Controllers
 {
+    [Produces("application/json")]
     [Route("api/[controller]/[action]")]
     [ApiController]
     public class AccountController : ControllerBase
     {
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IConfiguration _configuration;
 
-        public AccountController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager)
+        public AccountController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, IConfiguration configuration)
         {
             _signInManager = signInManager;
             _userManager = userManager;
+            _configuration = configuration;
         }
 
         [HttpPost]
@@ -31,7 +40,7 @@ namespace IdentityMicroservice.Controllers
 
             if (result.Succeeded)
             {
-                return Ok(result);
+                return Ok(GetToken(user));
             }
             else
             {
@@ -52,7 +61,9 @@ namespace IdentityMicroservice.Controllers
 
             if (result.Succeeded)
             {
-                return Ok(result);
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                var resultModel = new ResultModel(user.Id, GetToken(user));
+                return Ok(resultModel);
             }
             else
             {
@@ -60,5 +71,28 @@ namespace IdentityMicroservice.Controllers
             }
         }
 
+        private String GetToken(IdentityUser user)
+        {
+            var utcNow = DateTime.UtcNow;
+
+            var claims = new Claim[]
+            {
+                        new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                        new Claim(JwtRegisteredClaimNames.UniqueName, user.UserName),
+                        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                        new Claim(JwtRegisteredClaimNames.Iat, utcNow.ToString())
+            };
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(this._configuration.GetValue<String>("Tokens:Key")));
+            var signingCredentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+            var jwt = new JwtSecurityToken(
+                signingCredentials: signingCredentials,
+                claims: claims,
+                notBefore: utcNow,
+                expires: utcNow.AddSeconds(this._configuration.GetValue<int>("Tokens:Lifetime"))
+                );
+
+            return new JwtSecurityTokenHandler().WriteToken(jwt);
+        }
     }
 }

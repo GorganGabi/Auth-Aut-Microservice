@@ -1,12 +1,14 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using System;
+using System.Text;
 
 namespace IdentityMicroservice
 {
@@ -47,9 +49,27 @@ namespace IdentityMicroservice
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
                 options.User.RequireUniqueEmail = false;
             });
+
+            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Tokens:Key"]));
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(config =>
+            {
+                config.RequireHttpsMetadata = false;
+                config.SaveToken = true;
+                config.TokenValidationParameters = new TokenValidationParameters()
+                {
+                    IssuerSigningKey = signingKey,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true
+                };
+            });
+
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
         }
-
+         
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)
         {
