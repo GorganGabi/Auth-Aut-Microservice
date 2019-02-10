@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +28,34 @@ namespace IdentityMicroservice.Controllers
             _configuration = configuration;
         }
 
+        [HttpPost]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
 
+            var user = await _userManager.FindByIdAsync(model.Id);
+            var code = await _userManager.GeneratePasswordResetTokenAsync(user);
+
+
+            var passwordVerificationResult = _userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash, model.OldPassword);
+
+            if (passwordVerificationResult != PasswordVerificationResult.Failed)
+            {
+                return StatusCode(StatusCodes.Status422UnprocessableEntity);
+            }
+
+            var result = await _userManager.ResetPasswordAsync(user, code, model.Password);
+            if (result.Succeeded)
+            {
+                return Ok();
+            }
+            return Ok();
+        }
+
+        [HttpGet]
         public IActionResult ForgotPasswordConfirmation(string userId, string token)
         {
             return Ok("Forgot Password Request Confirmed");
@@ -46,14 +74,6 @@ namespace IdentityMicroservice.Controllers
                 return NotFound();
             }
             var rToken = await _userManager.GeneratePasswordResetTokenAsync(user);
-            //var rTokenLink = Url.ResetPasswordCallbackLink(user.Id, rToken, Request.Scheme);
-            //var rTokenLink = Url.Link("Default", new
-            //{
-            //    Controller = "Account",
-            //    Action = "ForgotPasswordConfirmation",
-            //    userId = user.Id,
-            //    token = rToken
-            //});
             var rTokenLink = Url.Action("ForgotPasswordConfirmation", "Account", new
             {
                 userId = user.Id,

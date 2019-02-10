@@ -1,6 +1,5 @@
 ﻿using MailKit.Net.Smtp;
 using MimeKit;
-using System.IO;
 
 namespace IdentityMicroservice
 {
