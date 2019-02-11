@@ -39,10 +39,8 @@ namespace IdentityMicroservice.Controllers
             var user = await _userManager.FindByIdAsync(model.Id);
             var code = await _userManager.GeneratePasswordResetTokenAsync(user);
 
-
-            var passwordVerificationResult = _userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash, model.OldPassword);
-
-            if (passwordVerificationResult != PasswordVerificationResult.Failed)
+            var passwordVerificationResult = await _signInManager.PasswordSignInAsync(user.Email, model.OldPassword, isPersistent: false, lockoutOnFailure: false);
+            if (!passwordVerificationResult.Succeeded)
             {
                 return StatusCode(StatusCodes.Status422UnprocessableEntity);
             }
