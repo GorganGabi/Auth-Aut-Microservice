@@ -29,11 +29,11 @@ namespace IdentityMicroservice.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordModel model)
+        public async Task<ServiceContract> ResetPassword([FromBody] ResetPasswordModel model)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return new ServiceContract(StatusCodes.Status400BadRequest, null, "Bad Model");
             }
 
             var user = await _userManager.FindByIdAsync(model.Id);
@@ -42,15 +42,15 @@ namespace IdentityMicroservice.Controllers
             var passwordVerificationResult = await _signInManager.PasswordSignInAsync(user.Email, model.OldPassword, isPersistent: false, lockoutOnFailure: false);
             if (!passwordVerificationResult.Succeeded)
             {
-                return StatusCode(StatusCodes.Status422UnprocessableEntity);
+                return new ServiceContract(StatusCodes.Status422UnprocessableEntity, null, "Password doesn't match");
             }
 
             var result = await _userManager.ResetPasswordAsync(user, code, model.Password);
             if (result.Succeeded)
             {
-                return Ok();
+                return new ServiceContract(StatusCodes.Status200OK, null, "Password has been reseted");
             }
-            return Ok();
+            return new ServiceContract(StatusCodes.Status400BadRequest, null, "Something went wrong, try later");
         }
 
         [HttpGet]
@@ -60,16 +60,16 @@ namespace IdentityMicroservice.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ForgotPassword(ForgotPasswordModel model)
+        public async Task<ServiceContract> ForgotPassword([FromBody] ForgotPasswordModel model)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return new ServiceContract(StatusCodes.Status400BadRequest, null, "Bad Model");
             }
             var user = await _userManager.FindByEmailAsync(model.Email);
             if (user == null || !(await _userManager.IsEmailConfirmedAsync(user)))
             {
-                return NotFound();
+                return new ServiceContract(StatusCodes.Status404NotFound, null, "User hasn't been found");
             }
             var rToken = await _userManager.GeneratePasswordResetTokenAsync(user);
             var rTokenLink = Url.Action("ForgotPasswordConfirmation", "Account", new
@@ -79,7 +79,7 @@ namespace IdentityMicroservice.Controllers
             }, protocol: Request.Scheme);
 
             SMTPClient.SendResetPasswordEmail(model.Email, rTokenLink);
-            return Ok();
+            return new ServiceContract(StatusCodes.Status200OK, null, "Email to reset password has been sent");
         }
 
         [HttpGet]
@@ -106,11 +106,11 @@ namespace IdentityMicroservice.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Register([FromBody] RegisterModel model)
+        public async Task<ServiceContract> Register([FromBody] RegisterModel model)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(model);
+                return new ServiceContract(StatusCodes.Status400BadRequest, null, "Bad Model");
             }
 
             var user = new ApplicationUser { Email = model.Email, UserName = model.Email };
@@ -126,21 +126,22 @@ namespace IdentityMicroservice.Controllers
                 }, protocol: Request.Scheme);
                 SMTPClient.SendConfirmationEmail(user.Email, cTokenLink);
 
-                return Ok(GetToken(user));
+                var resultModel = new ResultModel(user.Id, GetToken(user));
+                return new ServiceContract(StatusCodes.Status200OK, resultModel, "User created succesfully");
             }
             else
             {
-                return StatusCode(StatusCodes.Status422UnprocessableEntity);
+                return new ServiceContract(StatusCodes.Status422UnprocessableEntity, null, "User already exists");
             }
 
         }
 
         [HttpPost]
-        public async Task<IActionResult> Login([FromBody] LoginModel model)
+        public async Task<ServiceContract> Login([FromBody] LoginModel model)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return new ServiceContract(StatusCodes.Status400BadRequest, null, "Bad Model");
             }
 
             var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, model.RememberMe, lockoutOnFailure: false);
@@ -149,11 +150,11 @@ namespace IdentityMicroservice.Controllers
             {
                 var user = await _userManager.FindByEmailAsync(model.Email);
                 var resultModel = new ResultModel(user.Id, GetToken(user));
-                return Ok(resultModel);
+                return new ServiceContract(StatusCodes.Status200OK, resultModel, "User logged succesfully");
             }
             else
             {
-                return StatusCode(StatusCodes.Status422UnprocessableEntity);
+                return new ServiceContract(StatusCodes.Status422UnprocessableEntity, null, "Couldn't find the user");
             }
         }
 
