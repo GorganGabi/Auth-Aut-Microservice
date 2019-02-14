@@ -3,11 +3,11 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace IdentityMicroservice.Controllers
@@ -20,12 +20,14 @@ namespace IdentityMicroservice.Controllers
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IConfiguration _configuration;
+        private readonly AppSettings _appSettings;
 
-        public AccountController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, IConfiguration configuration)
+        public AccountController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, IConfiguration configuration, IOptions<AppSettings> appSettings)
         {
             _signInManager = signInManager;
             _userManager = userManager;
             _configuration = configuration;
+            _appSettings = appSettings.Value;
         }
 
         [HttpPost]
@@ -126,7 +128,7 @@ namespace IdentityMicroservice.Controllers
                 }, protocol: Request.Scheme);
                 SMTPClient.SendConfirmationEmail(user.Email, cTokenLink);
 
-                var resultModel = new ResultModel(user.Id, GetToken(user));
+                var resultModel = new ResultModel(user.Id, "");
                 return new ServiceContract(StatusCodes.Status200OK, resultModel, "User created succesfully");
             }
             else
@@ -149,37 +151,27 @@ namespace IdentityMicroservice.Controllers
             if (result.Succeeded)
             {
                 var user = await _userManager.FindByEmailAsync(model.Email);
-                var resultModel = new ResultModel(user.Id, GetToken(user));
+                //var tokenHandler = new JwtSecurityTokenHandler();
+                //var key = Encoding.ASCII.GetBytes(_appSettings.Secret);
+                //var tokenDescriptor = new SecurityTokenDescriptor
+                //{
+                //    Subject = new ClaimsIdentity(new Claim[]
+                //    {
+                //    new Claim(ClaimTypes.Name, user.Id.ToString())
+                //    }),
+                //    Expires = DateTime.UtcNow.AddDays(7),
+                //    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                //};
+                //var token = tokenHandler.CreateToken(tokenDescriptor);
+
+                //var resultModel = new ResultModel(user.Id, tokenHandler.WriteToken(token));
+                var resultModel = new ResultModel(user.Id, "");
                 return new ServiceContract(StatusCodes.Status200OK, resultModel, "User logged succesfully");
             }
             else
             {
                 return new ServiceContract(StatusCodes.Status422UnprocessableEntity, null, "Couldn't find the user");
             }
-        }
-
-            private string GetToken(IdentityUser user)
-        {
-            var utcNow = DateTime.UtcNow;
-
-            var claims = new Claim[]
-            {
-                        new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-                        new Claim(JwtRegisteredClaimNames.UniqueName, user.UserName),
-                        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                        new Claim(JwtRegisteredClaimNames.Iat, utcNow.ToString())
-            };
-
-            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(this._configuration.GetValue<String>("Tokens:Key")));
-            var signingCredentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
-            var jwt = new JwtSecurityToken(
-                signingCredentials: signingCredentials,
-                claims: claims,
-                notBefore: utcNow,
-                expires: utcNow.AddSeconds(this._configuration.GetValue<int>("Tokens:Lifetime"))
-                );
-
-            return new JwtSecurityTokenHandler().WriteToken(jwt);
         }
     }
 }
