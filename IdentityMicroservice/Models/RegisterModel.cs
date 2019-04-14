@@ -18,5 +18,6 @@ namespace IdentityMicroservice
 
         [Required]
         public string Role { get; set; }
+
     }
 }
