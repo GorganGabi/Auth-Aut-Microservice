@@ -13,5 +13,8 @@ namespace IdentityMicroservice
         public string Password { get; set; }
 
         public bool RememberMe { get; set; }
+
+        [Required]
+        public string Role { get; set; }
     }
 }

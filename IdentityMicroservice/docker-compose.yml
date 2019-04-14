@@ -3,7 +3,7 @@ services:
     web:
         build: .
         ports:
-            - "8000:80"
+            - "8080:80"
         depends_on:
             - db
     db:
@@ -11,3 +11,5 @@ services:
         environment:
             SA_PASSWORD: "Your_password123"
             ACCEPT_EULA: "Y"
+        ports:
+            - "1434:1433"

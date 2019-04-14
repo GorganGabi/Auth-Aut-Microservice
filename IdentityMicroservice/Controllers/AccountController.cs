@@ -115,11 +115,11 @@ namespace IdentityMicroservice.Controllers
                 return new ServiceContract(StatusCodes.Status400BadRequest, null, "Bad Model");
             }
 
-            var user = new ApplicationUser { Email = model.Email, UserName = model.Email };
+            var user = new ApplicationUser { Email = model.Email, UserName = model.Email, Role = model.Role };
             var result = await _userManager.CreateAsync(user, model.Password);
 
             if (result.Succeeded)
-            {
+            {               
                 var cToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
                 var cTokenLink = Url.Action("ConfirmEmail", "Account", new
                 {
@@ -151,22 +151,16 @@ namespace IdentityMicroservice.Controllers
             if (result.Succeeded)
             {
                 var user = await _userManager.FindByEmailAsync(model.Email);
-                //var tokenHandler = new JwtSecurityTokenHandler();
-                //var key = Encoding.ASCII.GetBytes(_appSettings.Secret);
-                //var tokenDescriptor = new SecurityTokenDescriptor
-                //{
-                //    Subject = new ClaimsIdentity(new Claim[]
-                //    {
-                //    new Claim(ClaimTypes.Name, user.Id.ToString())
-                //    }),
-                //    Expires = DateTime.UtcNow.AddDays(7),
-                //    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-                //};
-                //var token = tokenHandler.CreateToken(tokenDescriptor);
-
-                //var resultModel = new ResultModel(user.Id, tokenHandler.WriteToken(token));
                 var resultModel = new ResultModel(user.Id, "");
-                return new ServiceContract(StatusCodes.Status200OK, resultModel, "User logged succesfully");
+
+                if (user.Role != model.Role)
+                {
+                    return new ServiceContract(StatusCodes.Status422UnprocessableEntity, null, "Role doesn't match");
+                }
+                else
+                {
+                    return new ServiceContract(StatusCodes.Status200OK, resultModel, "User logged succesfully");
+                }
             }
             else
             {
