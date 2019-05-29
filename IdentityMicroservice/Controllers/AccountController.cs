@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -108,6 +110,7 @@ namespace IdentityMicroservice.Controllers
         }
 
         [HttpPost]
+        [AllowAnonymous]
         public async Task<ServiceContract> Register([FromBody] RegisterModel model)
         {
             if (!ModelState.IsValid)
@@ -128,8 +131,8 @@ namespace IdentityMicroservice.Controllers
                 }, protocol: Request.Scheme);
                 SMTPClient.SendConfirmationEmail(user.Email, cTokenLink);
 
-                var resultModel = new ResultModel(user.Id, "", user.Role);
-                return new ServiceContract(StatusCodes.Status200OK, resultModel, "User created succesfully");
+                var resultModel = new ResultModel(user.Id, GenerateJwtToken(user.Email, user), user.Role);
+                return new ServiceContract(StatusCodes.Status201Created, resultModel, "User created succesfully");
             }
             else
             {
@@ -138,7 +141,16 @@ namespace IdentityMicroservice.Controllers
 
         }
 
+        //jsut for testing purposes
+        [Authorize]
+        [HttpGet]
+        public async Task<object> Protected()
+        {
+            return "Authorization is working";
+        }
+
         [HttpPost]
+        [AllowAnonymous]
         public async Task<ServiceContract> Login([FromBody] LoginModel model)
         {
             if (!ModelState.IsValid)
@@ -146,12 +158,13 @@ namespace IdentityMicroservice.Controllers
                 return new ServiceContract(StatusCodes.Status400BadRequest, null, "Bad Model");
             }
 
+
             var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, model.RememberMe, lockoutOnFailure: false);
 
             if (result.Succeeded)
             {
                 var user = await _userManager.FindByEmailAsync(model.Email);
-                var resultModel = new ResultModel(user.Id, "", user.Role);
+                var resultModel = new ResultModel(user.Id, GenerateJwtToken(user.Email, user), user.Role);
 
                 if (user.Role != model.Role)
                 {
@@ -166,6 +179,30 @@ namespace IdentityMicroservice.Controllers
             {
                 return new ServiceContract(StatusCodes.Status422UnprocessableEntity, null, "Couldn't find the user");
             }
+        }
+
+        private string GenerateJwtToken(string email, IdentityUser user)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, email),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.Id)
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JwtKey"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var expires = DateTime.Now.AddDays(Convert.ToDouble(_configuration["JwtExpireDays"]));
+
+            var token = new JwtSecurityToken(
+                _configuration["JwtIssuer"],
+                _configuration["JwtIssuer"],
+                claims,
+                expires: expires,
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
     }
 }
