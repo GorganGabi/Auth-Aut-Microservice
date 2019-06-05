@@ -131,7 +131,7 @@ namespace IdentityMicroservice.Controllers
                 }, protocol: Request.Scheme);
                 SMTPClient.SendConfirmationEmail(user.Email, cTokenLink);
 
-                var resultModel = new ResultModel(user.Id, GenerateJwtToken(user.Email, user), user.Role);
+                var resultModel = new ResultModel(user.Id, GenerateJwtToken(user.Email, user), user.Role, user.Email);
                 return new ServiceContract(StatusCodes.Status201Created, resultModel, "User created succesfully");
             }
             else
@@ -164,7 +164,7 @@ namespace IdentityMicroservice.Controllers
             if (result.Succeeded)
             {
                 var user = await _userManager.FindByEmailAsync(model.Email);
-                var resultModel = new ResultModel(user.Id, GenerateJwtToken(user.Email, user), user.Role);
+                var resultModel = new ResultModel(user.Id, GenerateJwtToken(user.Email, user), user.Role, user.Email);
 
                 if (user.Role != model.Role)
                 {
